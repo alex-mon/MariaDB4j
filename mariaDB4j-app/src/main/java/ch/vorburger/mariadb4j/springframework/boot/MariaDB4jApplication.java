@@ -19,7 +19,6 @@
  */
 package ch.vorburger.mariadb4j.springframework.boot;
 
-import ch.vorburger.mariadb4j.MariaDB4jService;
 import ch.vorburger.mariadb4j.springframework.MariaDB4jSpringService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.Banner.Mode;
@@ -28,6 +27,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Spring Boot based MariaDB4j main() "Application" launcher.
@@ -40,6 +41,9 @@ import org.springframework.context.annotation.Configuration;
 public class MariaDB4jApplication implements ExitCodeGenerator {
 
     private final MariaDB4jSpringService mariaDB4j;
+    private static ConfigurableApplicationContext ctx;
+    private static CountDownLatch finlalizerLatch;
+
 
     @Autowired
     public MariaDB4jApplication(MariaDB4jSpringService mariaDB4j) {
@@ -49,17 +53,27 @@ public class MariaDB4jApplication implements ExitCodeGenerator {
     public static void main(String[] args) throws Exception {
         SpringApplication app = new SpringApplication(MariaDB4jApplication.class);
         app.setBannerMode(Mode.OFF);
-        ConfigurableApplicationContext ctx = app.run(args);
+        ctx = app.run(args);
 
-        MariaDB4jService.waitForKeyPressToCleanlyExit();
-
-        ctx.stop();
-        ctx.close();
+        finlalizerLatch = new CountDownLatch(1);
+        Runtime.getRuntime().addShutdownHook(new ShutDownHook());
+        System.out.println("Startup Finished. Use Ctrl+C to exit.");
+        finlalizerLatch.await();
     }
 
     @Override
     public int getExitCode() {
         return mariaDB4j.getLastException() == null ? 0 : -1;
+    }
+
+    private static class ShutDownHook extends Thread {
+        public void run() {
+            if (null != ctx) {
+                ctx.stop();
+                ctx.close();
+                finlalizerLatch.countDown();
+            }
+        }
     }
 
 }
