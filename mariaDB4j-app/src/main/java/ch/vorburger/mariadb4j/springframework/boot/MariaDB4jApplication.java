@@ -42,7 +42,7 @@ public class MariaDB4jApplication implements ExitCodeGenerator {
 
     private final MariaDB4jSpringService mariaDB4j;
     private static ConfigurableApplicationContext ctx;
-    private static CountDownLatch finlalizerLatch;
+    private static CountDownLatch shutdownLatch;
 
 
     @Autowired
@@ -55,10 +55,10 @@ public class MariaDB4jApplication implements ExitCodeGenerator {
         app.setBannerMode(Mode.OFF);
         ctx = app.run(args);
 
-        finlalizerLatch = new CountDownLatch(1);
+        shutdownLatch = new CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new ShutDownHook());
         System.out.println("Startup Finished. Use Ctrl+C to exit.");
-        finlalizerLatch.await();
+        shutdownLatch.await();
     }
 
     @Override
@@ -71,7 +71,7 @@ public class MariaDB4jApplication implements ExitCodeGenerator {
             if (null != ctx) {
                 ctx.stop();
                 ctx.close();
-                finlalizerLatch.countDown();
+                shutdownLatch.countDown();
             }
         }
     }
